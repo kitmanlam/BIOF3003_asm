@@ -1,4 +1,3 @@
-// app/api/save-record/route.ts
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
@@ -7,7 +6,6 @@ if (!MONGODB_URI) {
   throw new Error('MONGODB_URI not defined');
 }
 
-// Cache to reuse an existing connection
 let cached = (global as any).mongoose;
 if (!cached) {
   cached = (global as any).mongoose = { conn: null, promise: null };
@@ -27,46 +25,43 @@ async function dbConnect() {
   return cached.conn;
 }
 
-// Define the schema with an extra field for ppgData
 const RecordSchema = new mongoose.Schema({
   subjectId: { type: String, required: true },
-  heartRate: {
-    bpm: { type: Number, required: true },
-    confidence: { type: Number, required: true },
-  },
-  hrv: {
-    sdnn: { type: Number, required: true },
-    confidence: { type: Number, required: true },
-  },
-  ppgData: { type: [Number], required: true },
+  heartRate: { bpm: Number, confidence: Number },
+  hrv: { sdnn: Number, confidence: Number },
   timestamp: { type: Date, default: Date.now },
 });
 
-// Use an existing model if available or compile a new one
 const Record = mongoose.models.Record || mongoose.model('Record', RecordSchema);
 
+// POST Handler
 export async function POST(request: Request) {
   try {
     await dbConnect();
     const body = await request.json();
-
-    // Create a new record including the entire ppgData array
-    const newRecord = await Record.create({
-      subjectId: body.subjectId,
-      heartRate: body.heartRate,
-      hrv: body.hrv,
-      ppgData: body.ppgData, // The whole ppgData array is posted here
-      timestamp: body.timestamp || new Date(),
-    });
-
-    return NextResponse.json(
-      { success: true, data: newRecord },
-      { status: 201 }
-    );
+    const newRecord = await Record.create(body);
+    return NextResponse.json({ success: true, data: newRecord }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }
+
+export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const subjectId = searchParams.get('subjectId');
+  
+    if (!subjectId) {
+      return NextResponse.json({ success: false, error: 'Missing subjectId' });
+    }
+  
+    try {
+      const lastRecord = await Record.findOne({ subjectId }).sort({ timestamp: -1 });
+      if (!lastRecord) {
+        return NextResponse.json({ success: false, error: 'No records found' });
+      }
+  
+      return NextResponse.json({ success: true, lastAccess: lastRecord.timestamp });
+    } catch (error: any) {
+      return NextResponse.json({ success: false, error: error.message });
+    }
+  }

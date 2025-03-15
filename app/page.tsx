@@ -15,6 +15,10 @@ export default function Home() {
   const [signalCombination, setSignalCombination] = useState('default');
   const [showConfig, setShowConfig] = useState(false);
 
+  const [currentSubject, setCurrentSubject] = useState('');
+  const [confirmedSubject, setConfirmedSubject] = useState('');
+  const [historicalData, setHistoricalData] = useState({ avgHeartRate: 0, avgHRV: 0, lastAccess: null });
+
   // Define refs for video and canvas
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -72,6 +76,31 @@ export default function Home() {
     };
   }, [isSampling, ppgData]);
 
+  const confirmUser = () => {
+    if (currentSubject.trim()) {
+      setConfirmedSubject(currentSubject.trim());
+      fetchHistoricalData(currentSubject.trim());
+    } else {
+      alert('Please enter a valid Subject ID.');
+    }
+  };
+
+  const fetchHistoricalData = async (subjectId: string) => {
+    try {
+      const response = await fetch(`/api/last-access?subjectId=${subjectId}`);
+      const result = await response.json();
+      if (result.success) {
+        setHistoricalData({
+          avgHeartRate: result.avgHeartRate,
+          avgHRV: result.avgHRV,
+          lastAccess: result.lastAccess,
+        });
+      } 
+    } catch (error) {
+      console.error('Network error:', error);
+    }
+  };
+
   const pushDataToMongo = async () => {
     if (isUploading) return; // Prevent overlapping calls
 
@@ -82,6 +111,7 @@ export default function Home() {
     }
     // Prepare the record data – adjust or add additional fields as needed
     const recordData = {
+      subjectId: confirmedSubject || 'unknown',
       heartRate: {
         bpm: isNaN(heartRate.bpm) ? 0 : heartRate.bpm, // Replace NaN with "ERRATIC"
         confidence: hrv.confidence || 0,
@@ -119,6 +149,7 @@ export default function Home() {
   };
 
   return (
+    
     <div className="flex flex-col items-center p-4">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-4xl mb-4">
@@ -148,6 +179,30 @@ export default function Home() {
           {isSampling ? '⏹ STOP SAMPLING' : '⏺ START SAMPLING'}
         </button>
       </div>
+      <div>
+        {/* Input Field */}
+        <input
+          type="text"
+          value={currentSubject}
+          onChange={(e) => setCurrentSubject(e.target.value)}
+          placeholder="Enter Subject ID"
+          className="border border-gray-300 rounded-md p-2"
+        />
+        {/* Confirm Button */}
+        <button
+          onClick={confirmUser}
+          className="bg-cyan-500 text-white px-4 py-2 rounded-md ml-2"
+        >
+          Confirm User
+        </button>
+      </div>
+      {confirmedSubject && historicalData.lastAccess && (
+          <div className="mt-4">
+            <p>Last Access: {historicalData.lastAccess.toLocaleString()}</p>
+            <p>Avg Heart Rate: {historicalData.avgHeartRate} BPM</p>
+            <p>Avg HRV: {historicalData.avgHRV} ms</p>
+          </div>
+        )}
 
       {/* Main Grid: Camera and Chart Side by Side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl">
