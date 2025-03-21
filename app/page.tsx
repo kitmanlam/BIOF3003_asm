@@ -17,7 +17,8 @@ export default function Home() {
 
   const [currentSubject, setCurrentSubject] = useState('');
   const [confirmedSubject, setConfirmedSubject] = useState('');
-  const [historicalData, setHistoricalData] = useState({ avgHeartRate: 0, avgHRV: 0, lastAccess: null });
+  const [historicalData, setHistoricalData] = useState({ avgHeartRate: 0, avgHRV: 0});
+  const [lastAccess, setLastAccess] = useState('');
 
   // Define refs for video and canvas
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -89,22 +90,35 @@ export default function Home() {
     try {
       const response = await fetch(`/api/last-access?subjectId=${subjectId}`);
       const result = await response.json();
+      
       if (result.success) {
         setHistoricalData({
           avgHeartRate: result.avgHeartRate,
           avgHRV: result.avgHRV,
-          lastAccess: result.lastAccess,
         });
-      } 
+        setLastAccess(new Date(result.lastAccess).toLocaleString());
+      } else {
+        // Handle the case when no records are found
+        setHistoricalData({ avgHeartRate: 0, avgHRV: 0 });
+        setLastAccess('No previous records');
+      }
     } catch (error) {
       console.error('Network error:', error);
+      // Show user-friendly error message
+      setHistoricalData({ avgHeartRate: 0, avgHRV: 0 });
+      setLastAccess('Error fetching data');
     }
-  };
+};
 
   const pushDataToMongo = async () => {
     if (isUploading) return; // Prevent overlapping calls
 
-    setIsUploading(true); // Lock the function
+    // if (!confirmedSubject) {
+    //   alert('Please enter a Subject ID before saving data');
+    //   return;
+    // }
+
+    setIsUploading(true);
     if (ppgData.length === 0) {
       console.warn('No PPG data to send to MongoDB');
       return;
@@ -155,37 +169,6 @@ export default function Home() {
         {/* Title */}
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">HeartLen</h1>
 
-        {/* Buttons: Recording and Sampling */}
-        <div className="flex items-center gap-2">
-          {/* Recording Button */}
-          <button
-            onClick={() => setIsRecording(!isRecording)}
-            className={`p-3 rounded-lg text-sm transition-all duration-300 ${
-              isRecording
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-cyan-500 hover:bg-cyan-600 text-white'
-            }`}
-          >
-            {isRecording ? '⏹ STOP' : '⏺ START'} RECORDING
-          </button>
-
-          {/* Sampling Button */}
-          <button
-            onClick={() => setIsSampling(!isSampling)}
-            className={`p-3 rounded-lg text-sm transition-all duration-300 ${
-              isSampling
-                ? 'bg-green-500 hover:bg-green-600 text-white'
-                : 'bg-gray-500 hover:bg-gray-600 text-white'
-            }`}
-            disabled={!isRecording} // Enable only when recording is active
-          >
-            {isSampling ? '⏹ STOP SAMPLING' : '⏺ START SAMPLING'}
-          </button>
-        </div>
-      </div>
-
-      {/* User Panel */}
-      <div className="w-full max-w-6xl mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
         <div className="flex flex-col md:flex-row items-center gap-4">
           {/* Input Field */}
           <input
@@ -199,18 +182,48 @@ export default function Home() {
           {/* Confirm Button */}
           <button
             onClick={confirmUser}
-            className="w-full md:w-auto bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-md transition-all duration-300"
+            className="w-full md:w-auto bg-red-300 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-all duration-300"
           >
             Confirm User
           </button>
         </div>
 
-        {/* Historical Data Display */}
-        {confirmedSubject && historicalData.lastAccess && (
-          <div className="mt-4 text-gray-700 dark:text-gray-300">
-            <p><span className="font-semibold">Last Access:</span> {historicalData.lastAccess.toLocaleString()}</p>
+        {/* Buttons: Recording and Sampling */}
+        <div className="flex items-center gap-2">
+          {/* Recording Button */}
+          <button
+            onClick={() => setIsRecording(!isRecording)}
+            className={`p-3 rounded-lg text-sm transition-all duration-300 ${
+              isRecording
+                ? 'bg-red-500 hover:bg-red-600 text-white'
+                : 'bg-sky-300 hover:bg-sky-600 text-white'
+            }`}
+          >
+            {isRecording ? '⏹ STOP' : '⏺ START'} RECORDING
+          </button>
+
+          {/* Sampling Button */}
+          {/*<button
+            onClick={() => setIsSampling(!isSampling)}
+            className={`p-3 rounded-lg text-sm transition-all duration-300 ${
+              isSampling
+                ? 'bg-green-500 hover:bg-green-600 text-white'
+                : 'bg-gray-500 hover:bg-gray-600 text-white'
+            }`}
+            disabled={!isRecording} // Enable only when recording is active
+          >
+            {isSampling ? '⏹ STOP SAMPLING' : '⏺ START SAMPLING'}
+          </button> */}
+        </div>
+      </div>
+
+      {/* User Panel */}
+      <div className="w-full max-w-6xl mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        {confirmedSubject && lastAccess && (
+          <div className="text-gray-700 dark:text-gray-300">
+            <p><span className="font-semibold">Last Access:</span> {lastAccess.toLocaleString()}</p>
             <p><span className="font-semibold">Avg Heart Rate:</span> {historicalData.avgHeartRate} BPM</p>
-            <p><span className="font-semibold">Avg HRV:</span> {historicalData.avgHRV} ms</p>
+            <p><span className="font-semibold"> Avg HRV:</span> {historicalData.avgHRV} ms</p>
           </div>
         )}
       </div>
@@ -229,7 +242,7 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
             <button
               onClick={() => setShowConfig((prev) => !prev)}
-              className="w-full px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md transition-all duration-300"
+              className="w-full px-4 py-2 bg-sky-300 hover:bg-sky-600 text-white rounded-md transition-all duration-300"
             >
               {showConfig ? 'Hide Config' : 'Show Config'}
             </button>
@@ -255,7 +268,7 @@ export default function Home() {
           {/* Save Data to MongoDB Button */}
           <button
             onClick={pushDataToMongo}
-            className="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md transition-all duration-300"
+            className="w-full px-4 py-2 bg-purple-300 hover:bg-purple-600 text-white rounded-md transition-all duration-300"
           >
             Save Data to MongoDB
           </button>

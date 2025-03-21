@@ -55,13 +55,27 @@ export async function GET(request: Request) {
     }
   
     try {
-      const lastRecord = await Record.findOne({ subjectId }).sort({ timestamp: -1 });
-      if (!lastRecord) {
+      await dbConnect();
+      // Find all records for the subject
+      const records = await Record.find({ subjectId }).sort({ timestamp: -1 });
+      
+      if (!records || records.length === 0) {
         return NextResponse.json({ success: false, error: 'No records found' });
       }
-  
-      return NextResponse.json({ success: true, lastAccess: lastRecord.timestamp });
+
+      // Calculate averages
+      const totalRecords = records.length;
+      const avgHeartRate = records.reduce((sum, record) => sum + record.heartRate.bpm, 0) / totalRecords;
+      const avgHRV = records.reduce((sum, record) => sum + record.hrv.sdnn, 0) / totalRecords;
+      const lastAccess = records[0].timestamp; // Most recent record
+
+      return NextResponse.json({ 
+        success: true, 
+        avgHeartRate: Math.round(avgHeartRate), 
+        avgHRV: Math.round(avgHRV),
+        lastAccess 
+      });
     } catch (error: any) {
       return NextResponse.json({ success: false, error: error.message });
     }
-  }
+}
