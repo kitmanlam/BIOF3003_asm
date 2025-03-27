@@ -35,6 +35,7 @@ export default function Home() {
   } = usePPGProcessing(isRecording, signalCombination, videoRef, canvasRef);
 
   const { signalQuality, qualityConfidence } = useSignalQuality(ppgData);
+  // console.log("debug", signalQuality);
 
   // Start or stop recording
   useEffect(() => {
@@ -292,7 +293,7 @@ export default function Home() {
             {/* Signal Quality Card */}
             <MetricsCard
               title="SIGNAL QUALITY"
-              value={signalQuality || '--'}
+              value={signalQuality}
               confidence={qualityConfidence || 0}
             />
           </div>

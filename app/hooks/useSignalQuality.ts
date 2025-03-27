@@ -51,6 +51,7 @@ export default function useSignalQuality(
       const confidence = probabilities[classIndex] * 100;
 
       setSignalQuality(predictedClass);
+      // console.log("debug", predictedClass);
       setQualityConfidence(confidence);
 
       inputTensor.dispose();
@@ -61,10 +62,16 @@ export default function useSignalQuality(
   };
 
   const calculateFeatures = (signal: number[]): number[] => {
-    if (!signal.length) return new Array(8).fill(0);
+    if (!signal.length) return new Array(14).fill(0);
 
     // Calculate mean
     const mean = signal.reduce((sum, val) => sum + val, 0) / signal.length;
+
+    // Calculate median
+    const sortedSignal = [...signal].sort((a, b) => a - b);
+    const median = signal.length % 2 === 0
+      ? (sortedSignal[signal.length / 2 - 1] + sortedSignal[signal.length / 2]) / 2
+      : sortedSignal[Math.floor(signal.length / 2)];
 
     // Calculate standard deviation
     const squaredDiffs = signal.map((val) => Math.pow(val - mean, 2));
@@ -107,6 +114,37 @@ export default function useSignalQuality(
     const squaredSum = signal.reduce((sum, val) => sum + val * val, 0);
     const rms = Math.sqrt(squaredSum / signal.length);
 
+    // FFT Feature Calculations
+    const calculateFFTFeatures = () => {
+      // Convert to complex signal (real + imaginary)
+      const complexSignal = tf.complex(signal, new Array(signal.length).fill(0));
+      
+      // Compute FFT and get magnitudes
+      const fft = tf.spectral.fft(complexSignal);
+      const magnitudes = tf.abs(fft);
+      
+      // Take first half of coefficients (Nyquist theorem)
+      const halfLength = Math.floor(signal.length / 2);
+      const firstHalf = magnitudes.slice([0], [halfLength]);
+      const fftCoefficients = Array.from(firstHalf.dataSync());
+
+      // Calculate statistics
+      const fftMean = fftCoefficients.reduce((a, b) => a + b, 0) / fftCoefficients.length;
+      const fftStd = Math.sqrt(fftCoefficients.reduce((a, b) => a + Math.pow(b - fftMean, 2), 0) / fftCoefficients.length);
+      const fftMax = Math.max(...fftCoefficients);
+      const fftMin = Math.min(...fftCoefficients);
+
+      // Cleanup tensors
+      complexSignal.dispose();
+      fft.dispose();
+      magnitudes.dispose();
+      firstHalf.dispose();
+
+      return { fftMean, fftStd, fftMax, fftMin };
+    };
+
+    const { fftMean, fftStd, fftMax, fftMin } = calculateFFTFeatures();
+
     return [
       mean,
       std,
@@ -116,6 +154,12 @@ export default function useSignalQuality(
       zeroCrossings,
       rms,
       peakToPeak,
+      median, 
+      variance,
+      fftMean, 
+      fftStd, 
+      fftMax, 
+      fftMin
     ];
   };
 
